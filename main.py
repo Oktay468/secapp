@@ -19,6 +19,12 @@ st.set_page_config(
     layout="wide",
 )
 
+# --- OTURUM HAFIZASI (SESSION STATE) ---
+if "scan_results" not in st.session_state:
+    st.session_state["scan_results"] = None
+if "last_selected_tickers" not in st.session_state:
+    st.session_state["last_selected_tickers"] = []
+
 st.title("🐋 Balina Avcisi & SEC EDGAR Finansal Radar")
 st.caption("Teknik Akumulasyon Analizi ve SEC EDGAR Bilanco Sorgulama Platformu")
 
@@ -72,12 +78,6 @@ with tab_radar:
     if st.button("🔍 Canli Taramayi Baslat", type="primary"):
         selected_tickers = random.sample(all_tickers, min(len(all_tickers), scan_limit))
 
-        st.divider()
-        st.subheader(f"📊 {market_type} Taramasi ({len(selected_tickers)} Rastgele Hisse Analiz Ediliyor)")
-
-        with st.expander("👁️ Taranan Hisse Sembollerini Gor"):
-            st.write(", ".join(selected_tickers))
-
         progress_bar = st.progress(0)
         results = []
 
@@ -97,6 +97,21 @@ with tab_radar:
             progress_bar.progress((idx + 1) / len(selected_tickers))
 
         progress_bar.empty()
+
+        # Sonuçları ve seçilen sembolleri hafızaya kaydet
+        st.session_state["scan_results"] = results
+        st.session_state["last_selected_tickers"] = selected_tickers
+
+    # --- SEKMELER ARASI GEÇİŞTE KORUNAN SONUÇ EKRANI ---
+    if st.session_state["scan_results"] is not None:
+        results = st.session_state["scan_results"]
+        selected_tickers = st.session_state.get("last_selected_tickers", [])
+
+        st.divider()
+        st.subheader(f"📊 {market_type} Taramasi ({len(selected_tickers)} Rastgele Hisse Analiz Ediliyor)")
+
+        with st.expander("👁️ Taranan Hisse Sembollerini Gor"):
+            st.write(", ".join(selected_tickers))
 
         if results:
             data_table = []
@@ -135,7 +150,7 @@ with tab_radar:
                 else:
                     st.info("ℹ️ Taranan 7$ alti hisseler arasinda balina tespiti yapilan bulunamadi.")
         else:
-            st.warning("⚠️ Secilen 50 rastgele hisse icinde 7$ altinda kalan veya verisi cekilebilen hisse bulunamadi. Lutfen tekrar 'Canli Taramayi Baslat' butonuna basarak yeni bir paket taratin.")
+            st.warning("⚠️ Secilen rastgele hisseler icinde 7$ altinda kalan veya verisi cekilebilen hisse bulunamadi. Lutfen tekrar 'Canli Taramayi Baslat' butonuna basarak yeni bir paket taratin.")
 
 # ==========================================
 # SEKMELER 2: SEC EDGAR FINANSAL SORGU

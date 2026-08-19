@@ -10,25 +10,24 @@ from datetime import datetime, timedelta
 def get_all_market_tickers(market_type="US"):
     if market_type == "BIST":
         try:
-            url = "https://raw.githubusercontent.com/datasets/top-spanish-companies/master/data/bist.json" # Yedek BIST listesi ornegi
-            # BIST hisselerini yfinance uyumlu formatta hazirlar (ORNEK.IS)
             bist_tickers = ["THYAO.IS", "GARAN.IS", "ASELS.IS", "EREGL.IS", "AKBNK.IS", "KCHOL.IS", "SASAN.IS", "SISE.IS", "TUPRS.IS", "BIMAS.IS"]
             return bist_tickers
         except Exception:
             return ["THYAO.IS", "GARAN.IS", "ASELS.IS"]
     else:
         try:
-            # SEC EDGAR U.S. Ticker listesini çeker
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            res = requests.get("https://www.sec.gov/files/company_tickers.json", headers=headers)
+            # SEC EDGAR zorunlu kurumsal User-Agent header
+            headers = {'User-Agent': 'WhaleRadarAdmin contact@whaleradar.com'}
+            res = requests.get("https://www.sec.gov/files/company_tickers.json", headers=headers, timeout=5)
             if res.status_code == 200:
                 data = res.json()
                 tickers = [v['ticker'] for v in data.values()]
                 return sorted(tickers)
             else:
-                return ["AAPL", "MSFT", "AMZN", "GOOGL", "NVDA", "TSLA", "META"]
+                # SEC yanıt vermezse devreye girecek düşük fiyatlı yedek hisseler
+                return ["EBRCZ", "SNDL", "MULN", "CEI", "ZOM", "IDEX", "SHIP", "TOPS", "NAKD", "BBIG", "XELA", "CIDM", "PLUG", "FCEL"]
         except Exception:
-            return ["AAPL", "MSFT", "AMZN", "GOOGL", "NVDA"]
+            return ["EBRCZ", "SNDL", "MULN", "CEI", "ZOM", "SHIP", "PLUG"]
 
 def fetch_stock_data(symbol, market_type="US"):
     try:

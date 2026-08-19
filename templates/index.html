@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>SEC EDGAR Finansal Tablolar</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f7f6; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .search-box { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; font-size: 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .table-section { margin-top: 30px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: right; }
+        th { background-color: #f8f9fa; text-align: center; }
+        td:first-child { text-align: center; font-weight: bold; }
+        .section-title { margin-top: 25px; color: #333; border-bottom: 2px solid #007bff; padding-bottom: 5px; }
+        .error { color: red; margin-top: 10px; }
+        .loading { color: #555; font-style: italic; display: none; }
+    </style>
+</head>
+<body>
+<div style="background: #222; padding: 10px 20px; margin-bottom: 20px;">
+    <a href="/radar" style="color: white; text-decoration: none; font-weight: bold; background: #28a745; padding: 8px 16px; border-radius: 4px;">
+        🐋 Balina Avcısı Radar'a Git →
+    </a>
+</div>
+
+<div class="container">
+    <h2>SEC EDGAR Finansal Tablo Sorgulama</h2>
+    <div class="search-box">
+        <input type="text" id="tickerInput" placeholder="Ticker girin (örn: AAPL, MSFT, TSLA, NLY)">
+        <button onclick="fetchFinancials()">Getir</button>
+    </div>
+
+    <div id="loading" class="loading">SEC EDGAR verileri çekiliyor...</div>
+    <div id="error" class="error"></div>
+    <h3 id="companyTitle"></h3>
+
+    <!-- 1. Bilanço Tablosu -->
+    <div id="balanceSheetSection" class="table-section" style="display:none;">
+        <h4 class="section-title">1. Bilanço (Balance Sheet)</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>Yıl</th>
+                    <th>Toplam Varlıklar (Assets)</th>
+                    <th>Toplam Yükümlülükler (Liabilities)</th>
+                    <th>Özkaynaklar (Equity)</th>
+                </tr>
+            </thead>
+            <tbody id="bsTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 2. Gelir Tablosu -->
+    <div id="incomeStatementSection" class="table-section" style="display:none;">
+        <h4 class="section-title">2. Yıllık Gelir Tablosu (Income Statement - 10-K)</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>Yıl</th>
+                    <th>Hasılat / Gelir (Revenue)</th>
+                    <th>Brüt Kar (Gross Profit)</th>
+                    <th>Net Kar (Net Income)</th>
+                    <th>Hisse Başına Kazanç (EPS)</th>
+                </tr>
+            </thead>
+            <tbody id="isTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 3. Çeyreklik Gelir Tablosu -->
+    <div id="quarterlySection" class="table-section" style="display:none;">
+        <h4 class="section-title">3. Çeyreklik Performans (Son 10-Q Raporları)</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>Dönem (Çeyrek)</th>
+                    <th>Hasılat / Gelir (Revenue)</th>
+                    <th>Brüt Kar (Gross Profit)</th>
+                    <th>Net Kar (Net Income)</th>
+                    <th>Hisse Başına Kazanç (EPS)</th>
+                </tr>
+            </thead>
+            <tbody id="qsTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- 4. Nakit Akışı ve Hisse Yapısı Tablosu -->
+    <div id="cashFlowSection" class="table-section" style="display:none;">
+        <h4 class="section-title">4. Nakit Akışı ve Hisse Yapısı (FCF & Buybacks)</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th>Yıl</th>
+                    <th>Serbest Nakit Akışı (Free Cash Flow)</th>
+                    <th>Hisse Geri Alımı (Buybacks)</th>
+                    <th>Tedavüldeki Hisse Sayısı</th>
+                </tr>
+            </thead>
+            <tbody id="cfTableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function formatCurrency(val) {
+    if (val === 'N/A' || val === undefined) return 'N/A';
+    return '$' + Number(val).toLocaleString();
+}
+
+function formatEPS(val) {
+    if (val === 'N/A' || val === undefined) return 'N/A';
+    return '$' + Number(val).toFixed(2);
+}
+
+function formatNumber(val) {
+    if (val === 'N/A' || val === undefined) return 'N/A';
+    return Number(val).toLocaleString();
+}
+
+async function fetchFinancials() {
+    const ticker = document.getElementById('tickerInput').value.trim();
+    const errorDiv = document.getElementById('error');
+    const loadingDiv = document.getElementById('loading');
+    const bsSection = document.getElementById('balanceSheetSection');
+    const isSection = document.getElementById('incomeStatementSection');
+    const qsSection = document.getElementById('quarterlySection');
+    const cfSection = document.getElementById('cashFlowSection');
+    
+    const bsTableBody = document.getElementById('bsTableBody');
+    const isTableBody = document.getElementById('isTableBody');
+    const qsTableBody = document.getElementById('qsTableBody');
+    const cfTableBody = document.getElementById('cfTableBody');
+    const companyTitle = document.getElementById('companyTitle');
+
+    if (!ticker) return;
+
+    errorDiv.innerText = '';
+    companyTitle.innerText = '';
+    bsSection.style.display = 'none';
+    isSection.style.display = 'none';
+    qsSection.style.display = 'none';
+    cfSection.style.display = 'none';
+    loadingDiv.style.display = 'block';
+
+    try {
+        const response = await fetch(`/api/financials/${ticker}`);
+        const result = await response.json();
+
+        loadingDiv.style.display = 'none';
+
+        if (!response.ok) {
+            errorDiv.innerText = result.error || 'Bir hata oluştu.';
+            return;
+        }
+
+        companyTitle.innerText = `${result.company} (${result.ticker}) - Finansal Raporlar`;
+        bsTableBody.innerHTML = '';
+        isTableBody.innerHTML = '';
+        qsTableBody.innerHTML = '';
+        cfTableBody.innerHTML = '';
+
+        // Yıllık Verilerin Basılması
+        result.data.forEach(row => {
+            // Bilanço Satırı
+            const bsTr = document.createElement('tr');
+            bsTr.innerHTML = `
+                <td>${row.year}</td>
+                <td>${formatCurrency(row.assets)}</td>
+                <td>${formatCurrency(row.liabilities)}</td>
+                <td>${formatCurrency(row.equity)}</td>
+            `;
+            bsTableBody.appendChild(bsTr);
+
+            // Gelir Tablosu Satırı
+            const isTr = document.createElement('tr');
+            isTr.innerHTML = `
+                <td>${row.year}</td>
+                <td>${formatCurrency(row.revenue)}</td>
+                <td>${formatCurrency(row.gross_profit)}</td>
+                <td>${formatCurrency(row.net_income)}</td>
+                <td>${formatEPS(row.eps)}</td>
+            `;
+            isTableBody.appendChild(isTr);
+
+            // Nakit Akışı Satırı
+            const cfTr = document.createElement('tr');
+            cfTr.innerHTML = `
+                <td>${row.year}</td>
+                <td>${formatCurrency(row.fcf)}</td>
+                <td>${formatCurrency(row.buybacks)}</td>
+                <td>${formatNumber(row.shares)} Adet</td>
+            `;
+            cfTableBody.appendChild(cfTr);
+        });
+
+        // Çeyreklik Verilerin Basılması
+        if (result.quarterly_data && result.quarterly_data.length > 0) {
+            result.quarterly_data.forEach(row => {
+                const qsTr = document.createElement('tr');
+                qsTr.innerHTML = `
+                    <td>${row.quarter}</td>
+                    <td>${formatCurrency(row.revenue)}</td>
+                    <td>${formatCurrency(row.gross_profit)}</td>
+                    <td>${formatCurrency(row.net_income)}</td>
+                    <td>${formatEPS(row.eps)}</td>
+                `;
+                qsTableBody.appendChild(qsTr);
+            });
+            qsSection.style.display = 'block';
+        }
+
+        bsSection.style.display = 'block';
+        isSection.style.display = 'block';
+        cfSection.style.display = 'block';
+    } catch (err) {
+        loadingDiv.style.display = 'none';
+        errorDiv.innerText = 'Sunucu ile iletişim kurulamadı.';
+    }
+}
+</script>
+
+</body>
+</html>

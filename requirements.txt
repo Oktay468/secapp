@@ -1,0 +1,6 @@
+streamlit
+pandas
+yfinance
+requests
+python-dotenv
+alpaca-py
